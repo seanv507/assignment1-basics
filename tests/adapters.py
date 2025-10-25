@@ -14,6 +14,8 @@ from cs336_basics.rmsnorm import RMSNorm
 from cs336_basics.swiglu import SwiGLU
 from cs336_basics.softmax import SoftMax
 from cs336_basics.rope import RoPE
+from cs336_basics.sdp_attention import Attention
+from cs336_basics.multiheadattention import MultiHeadAttention
 
 def run_linear(
     d_in: int,
@@ -116,7 +118,9 @@ def run_scaled_dot_product_attention(
     Returns:
         Float[Tensor, " ... queries d_v"]: Output of SDPA
     """
-    raise NotImplementedError
+    attention_layer = Attention()
+    out = attention_layer(Q, K, V, mask)
+    return out
 
 
 def run_multihead_self_attention(
@@ -150,7 +154,25 @@ def run_multihead_self_attention(
         Float[Tensor, " ... sequence_length d_out"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    #     (Pdb) q_proj_weight.shape
+    # torch.Size([64, 64])
+    # (Pdb) k_proj_weight.shape
+    # torch.Size([64, 64])
+    # (Pdb) v_proj_weight.shape
+    # torch.Size([64, 64])
+    # (Pdb) o_proj_weight.shape
+    # torch.Size([64, 64])
+    # (Pdb) in_features.shape
+    # torch.Size([4, 12, 64])
+
+
+    multihead_attention = MultiHeadAttention(d_model, num_heads)
+    torch.nn.Module.load_state_dict(multihead_attention, {"Q": q_proj_weight,
+                                                          "K": k_proj_weight,
+                                                          "V": v_proj_weight,
+                                                          "O": o_proj_weight})
+    out = multihead_attention(in_features)
+    return out
 
 
 def run_multihead_self_attention_with_rope(

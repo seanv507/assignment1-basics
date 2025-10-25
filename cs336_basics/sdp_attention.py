@@ -1,0 +1,21 @@
+import math
+import torch
+from einx import dot
+from cs336_basics.softmax import SoftMax
+
+class Attention(torch.nn.Module):
+    def __init__(self)-> None:
+        super().__init__()
+        self.softmax = SoftMax()
+
+    def forward(self, Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor, mask: torch.Tensor | None=None)-> torch.Tensor:
+        """ given x  and weights """       
+        qt_k = dot("b... a [d], b... c [d] -> b... a c", Q, K)
+        d_k = K.size(-1)
+        qt_k /= math.sqrt(d_k)
+        if mask is not None:
+            qt_k[~mask] = -torch.inf
+        attention = self.softmax(qt_k, -1)
+        out = dot("b... a [d], b... [d] e-> b... a e ", attention, V)
+        return out    
+    
