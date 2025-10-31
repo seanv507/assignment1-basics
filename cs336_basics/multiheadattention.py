@@ -21,13 +21,16 @@ class MultiHeadAttention(torch.nn.Module):
         Q = einx.dot("b... s [d] , o  [d]->  b... s o", x, self.Q)
         K = einx.dot("b... s [d] , o  [d]->  b... s o", x, self.K)
         V = einx.dot("b... s [d] , o  [d]->  b... s o", x, self.V)
-        Q_rearrange = einx.rearrange("b... s (h d) -> b... s h d", Q, d = self.d_k)
-        K_rearrange = einx.rearrange("b... s (h d) -> b... s h d", K, d = self.d_k)
+        Q_rearrange = einx.rearrange("b... s (h d) -> b... h s d", Q, h = self.num_heads)
+        K_rearrange = einx.rearrange("b... s (h d) -> b... h s d", K, h = self.num_heads)
+        V_rearrange = einx.rearrange("b... s (h d) -> b... h s d", V, h = self.num_heads)
+        # As a stretch goal, try combining the key, query, and value projections into a single weight matrix so you only need a single
+        # matrix multiply.
 
         seq_len = x.shape[-2]
-        mask = torch.triu(torch.ones((seq_len, seq_len),dtype=torch.bool))
-        att_out = self.sdp_attention(Q_rearrange, K_rearrange, V, mask)
-        att_out = einx.rearrange("b... s h d -> b... s (h d)", K, d = self.d_k)
+        mask = torch.tril(torch.ones((seq_len, seq_len),dtype=torch.bool))
+        att_out = self.sdp_attention(Q_rearrange, K_rearrange, V_rearrange, mask)
+        att_out = einx.rearrange("b... h s d -> b... s (h d)", att_out, h = self.num_heads)
         
         out = einx.dot("b... s [d] , o  [d]->  b... s o", att_out, self.O)
         return out

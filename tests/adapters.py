@@ -16,6 +16,12 @@ from cs336_basics.softmax import SoftMax
 from cs336_basics.rope import RoPE
 from cs336_basics.sdp_attention import Attention
 from cs336_basics.multiheadattention import MultiHeadAttention
+from cs336_basics.crossentropy import cross_entropy_loss
+from cs336_basics.adamw import AdamW
+from cs336_basics.lr_cosine_schedule import lr_cosine_schedule
+from cs336_basics.gradient_clipping import clip_gradients_
+from cs336_basics.batching import get_batch
+from cs336_basics.checkpointing import save_checkpoint, load_checkpoint
 
 def run_linear(
     d_in: int,
@@ -456,7 +462,8 @@ def run_get_batch(
         is the sampled input sequences, and the second tuple item is the corresponding
         language modeling labels.
     """
-    raise NotImplementedError
+    X, y = get_batch(dataset, batch_size, context_length, device)
+    return X, y
 
 
 def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, " ..."]:
@@ -491,7 +498,8 @@ def run_cross_entropy(
     Returns:
         Float[Tensor, ""]: The average cross-entropy loss across examples.
     """
-    raise NotImplementedError
+    out = cross_entropy_loss(inputs, targets)
+    return out
 
 
 def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm: float) -> None:
@@ -503,14 +511,15 @@ def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm:
 
     The gradients of the parameters (parameter.grad) should be modified in-place.
     """
-    raise NotImplementedError
+    clip_gradients_(parameters, max_l2_norm)
 
 
 def get_adamw_cls() -> Any:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
     """
-    raise NotImplementedError
+    adamw =AdamW
+    return adamw
 
 
 def run_get_lr_cosine_schedule(
@@ -538,7 +547,8 @@ def run_get_lr_cosine_schedule(
     Returns:
         Learning rate at the given iteration under the specified schedule.
     """
-    raise NotImplementedError
+    lr = lr_cosine_schedule(it, max_learning_rate, min_learning_rate, warmup_iters, cosine_cycle_iters)
+    return lr
 
 
 def run_save_checkpoint(
@@ -557,7 +567,7 @@ def run_save_checkpoint(
             we've completed.
         out (str | os.PathLike | BinaryIO | IO[bytes]): Path or file-like object to serialize the model, optimizer, and iteration to.
     """
-    raise NotImplementedError
+    save_checkpoint(model, optimizer, iteration, out)
 
 
 def run_load_checkpoint(
@@ -578,7 +588,8 @@ def run_load_checkpoint(
     Returns:
         int: the previously-serialized number of iterations.
     """
-    raise NotImplementedError
+    iteration = load_checkpoint(src, model, optimizer)
+    return iteration
 
 
 def get_tokenizer(

@@ -14,8 +14,8 @@ class Attention(torch.nn.Module):
         d_k = K.size(-1)
         qt_k /= math.sqrt(d_k)
         if mask is not None:
-            qt_k[~mask] = -torch.inf
+            qt_k.masked_fill_(~mask, -torch.inf)
         attention = self.softmax(qt_k, -1)
-        out = dot("b... a [d], b... [d] e-> b... a e ", attention, V)
+        out = dot("b... h s1 [s2], b... h [s2] d_out-> b... h s1 d_out ", attention, V)
         return out    
     
