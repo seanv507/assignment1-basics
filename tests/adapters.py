@@ -23,6 +23,7 @@ from cs336_basics.gradient_clipping import clip_gradients_
 from cs336_basics.batching import get_batch
 from cs336_basics.checkpointing import save_checkpoint, load_checkpoint
 
+
 def run_linear(
     d_in: int,
     d_out: int,
@@ -45,6 +46,7 @@ def run_linear(
     torch.nn.Module.load_state_dict(linear_layer, {"weight": weights})
     out = linear_layer(in_features)
     return out
+
 
 def run_embedding(
     vocab_size: int,
@@ -171,12 +173,10 @@ def run_multihead_self_attention(
     # (Pdb) in_features.shape
     # torch.Size([4, 12, 64])
 
-
     multihead_attention = MultiHeadAttention(d_model, num_heads)
-    torch.nn.Module.load_state_dict(multihead_attention, {"Q": q_proj_weight,
-                                                          "K": k_proj_weight,
-                                                          "V": v_proj_weight,
-                                                          "O": o_proj_weight})
+    torch.nn.Module.load_state_dict(
+        multihead_attention, {"Q": q_proj_weight, "K": k_proj_weight, "V": v_proj_weight, "O": o_proj_weight}
+    )
     out = multihead_attention(in_features)
     return out
 
@@ -240,7 +240,7 @@ def run_rope(
     Returns:
         Float[Tensor, " ... sequence_length d_k"]: Tensor with RoPEd input.
     """
-    
+
     rope_layer = RoPE(theta, d_k=d_k, max_seq_len=max_seq_len)
     rope_out = rope_layer(in_query_or_key, token_positions)
     return rope_out
@@ -483,6 +483,7 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
     out = softmax_layer(in_features)
     return out
 
+
 def run_cross_entropy(
     inputs: Float[Tensor, " batch_size vocab_size"], targets: Int[Tensor, " batch_size"]
 ) -> Float[Tensor, ""]:
@@ -518,7 +519,7 @@ def get_adamw_cls() -> Any:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
     """
-    adamw =AdamW
+    adamw = AdamW
     return adamw
 
 

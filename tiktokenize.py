@@ -4,7 +4,6 @@ from tiktoken.load import load_tiktoken_bpe
 import json
 
 
-
 tokenizer_path = "./content/tokenizer.model"
 num_reserved_special_tokens = 256
 
@@ -28,8 +27,7 @@ special_tokens = [
 ]
 
 reserved_tokens = [
-    f"<|reserved_special_token_{2 + i}|>"
-    for i in range(num_reserved_special_tokens - len(special_tokens))
+    f"<|reserved_special_token_{2 + i}|>" for i in range(num_reserved_special_tokens - len(special_tokens))
 ]
 special_tokens = special_tokens + reserved_tokens
 

@@ -5,6 +5,7 @@ import regex as re
 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
+
 def find_chunk_boundaries(
     file: BinaryIO,
     desired_num_chunks: int,
@@ -62,7 +63,6 @@ def chunk_and_count_tokens(filename, special_tokens=None):
         # by sending each start/end pair to a set of processes.
         token_counts = Counter()
         for start, end in zip(boundaries[:-1], boundaries[1:]):
-                        
             token_count = process_chunk(f, start, end, special_tokens)
             token_counts += token_count
     byte_tuple_counts = split_tokens(token_counts)
@@ -72,24 +72,27 @@ def chunk_and_count_tokens(filename, special_tokens=None):
     print(sorted_byte_pairs)
     return byte_tuple_counts
 
+
 def split_tokens(token_counts: dict[str, int]) -> dict[tuple[bytes], int]:
     byte_tuple_counts = Counter({tuple(token): count for token, count in token_counts.items()})
     return byte_tuple_counts
 
-def process_chunk(file: BinaryIO, start: int, end: int , special_tokens):
+
+def process_chunk(file: BinaryIO, start: int, end: int, special_tokens):
     text = read_chunk(file, start, end)
-    
+
     texts = strip_special_tokens(text, special_tokens)
     token_counts = count_tokens(tok for text in texts for tok in pretokenize(text))
     return token_counts
 
-    
+
 def read_chunk(file: BinaryIO, start: int, end: int) -> str:
     file.seek(start)
     chunk = file.read(end - start).decode("utf-8", errors="ignore")
     return chunk
 
-def strip_special_tokens(text:str, special_tokens: Iterable[str] = None) -> list[str]:
+
+def strip_special_tokens(text: str, special_tokens: Iterable[str] = None) -> list[str]:
     if special_tokens is None:
         special_tokens = ["<|endoftext|>"]
     escaped_special_tokens = [re.escape(token) for token in special_tokens]
@@ -98,17 +101,18 @@ def strip_special_tokens(text:str, special_tokens: Iterable[str] = None) -> list
     return texts
 
 
-
 def pretokenize(text: str) -> dict[str, int]:
     # Run pre-tokenization on your chunk and store the counts for each pre-token
     tokens = re.finditer(PAT, text)
     for token in tokens:
         yield token.group()
 
+
 def count_tokens(tokens: Iterable[str]) -> dict[str, int]:
     token_counts = Counter(tokens)
-    
+
     return token_counts
+
 
 def create_byte_pair_counts(byte_tuple_counts: dict[tuple[bytes], int]) -> dict[tuple[bytes], int]:
     byte_pair_counts = Counter()
@@ -117,8 +121,8 @@ def create_byte_pair_counts(byte_tuple_counts: dict[tuple[bytes], int]) -> dict[
         if len(byte_tuple) == 1:
             continue
         for b1, b2 in zip(byte_tuple, byte_tuple[1:]):
-            byte_pair_counts[(b1,b2)] += count
-            byte_pair_locations[(b1,b2)].add(byte_tuple)
+            byte_pair_counts[(b1, b2)] += count
+            byte_pair_locations[(b1, b2)].add(byte_tuple)
     return byte_pair_counts, byte_pair_locations
 
 
@@ -153,14 +157,14 @@ def merge_byte_pairs(byte_pair_counts, byte_pair_locations, byte_tuple_counts, p
             new_byte_tuple_counts[byte_tuple] += count
     return new_byte_tuple_counts
 
+
 #     #
 # sort by count
 
-# # how to merge byte pairs (rather than chars?), tuples? 
+# # how to merge byte pairs (rather than chars?), tuples?
 # how to do reversed lexicographic ordering on tuples of different nesting?
-# 
+#
 # sort counters by count and lex ordering
 # then go through and replace key with merged version in byte_tuple_counts
-    
-# repeat again
 
+# repeat again
