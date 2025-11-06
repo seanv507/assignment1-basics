@@ -22,6 +22,7 @@ from cs336_basics.lr_cosine_schedule import lr_cosine_schedule
 from cs336_basics.gradient_clipping import clip_gradients_
 from cs336_basics.batching import get_batch
 from cs336_basics.checkpointing import save_checkpoint, load_checkpoint
+from cs336_basics.transformer import Transformer
 
 
 def run_linear(
@@ -218,7 +219,18 @@ def run_multihead_self_attention_with_rope(
         Float[Tensor, " ... sequence_length d_out"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    max_seq_len = token_positions.shape[-1]
+    d_k = int(d_model / num_heads)
+    rope = RoPE(theta, d_k, max_seq_len)
+    multihead_attention = MultiHeadAttention(d_model, num_heads, rope)
+    torch.nn.Module.load_state_dict(
+        multihead_attention, {"Q": q_proj_weight, "K": k_proj_weight, "V": v_proj_weight, "O": o_proj_weight}
+    )
+    # why is token positions [1, 12] instead of [12]
+    # and in_features is [4 12 64]
+
+    out = multihead_attention(in_features, token_positions)
+    return out
 
 
 def run_rope(
@@ -316,7 +328,33 @@ def run_transformer_block(
         Float[Tensor, "batch sequence_length d_model"] Tensor with the output of
         running the Transformer block on the input features while using RoPE.
     """
-    raise NotImplementedError
+
+    d_k = int(d_model / num_heads)
+    rope = RoPE(theta, d_k, max_seq_len)
+    transformer = Transformer(d_model, num_heads, d_ff, rope=rope)
+
+    torch.nn.Module.load_state_dict(
+        transformer.attn,
+        {
+            "Q": weights["attn.q_proj.weight"],
+            "K": weights["attn.k_proj.weight"],
+            "V": weights["attn.v_proj.weight"],
+            "O": weights["attn.output_proj.weight"],
+        },
+    )
+    torch.nn.Module.load_state_dict(
+        transformer.ffn,
+        {
+            "weight_1": weights["ffn.w1.weight"],
+            "weight_2": weights["ffn.w2.weight"],
+            "weight_3": weights["ffn.w3.weight"],
+        },
+    )
+    torch.nn.Module.load_state_dict(transformer.ln1, {"g": weights["ln1.weight"]})
+    torch.nn.Module.load_state_dict(transformer.ln2, {"g": weights["ln2.weight"]})
+    # in_features: Float[Tensor, " batch sequence_length d_model"],
+    out = transformer(in_features)
+    return out
 
 
 def run_transformer_lm(
@@ -398,7 +436,54 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+    from cs336_basics.transformer_lm import TransformerLM
+
+    transformer_lm = TransformerLM(vocab_size, context_length, num_layers, d_model, num_heads, d_ff, rope_theta)
+    torch.nn.Module.load_state_dict(transformer_lm.embedding, {"weight": weights["token_embeddings.weight"]})
+    for i_transformer in range(num_layers):
+        transformer = transformer_lm.transformers[i_transformer]
+        torch.nn.Module.load_state_dict(
+            transformer.attn,
+            {
+                "Q": weights[f"layers.{i_transformer}.attn.q_proj.weight"],
+                "K": weights[f"layers.{i_transformer}.attn.k_proj.weight"],
+                "V": weights[f"layers.{i_transformer}.attn.v_proj.weight"],
+                "O": weights[f"layers.{i_transformer}.attn.output_proj.weight"],
+            },
+        )
+
+        torch.nn.Module.load_state_dict(
+            transformer.ffn,
+            {
+                "weight_1": weights[f"layers.{i_transformer}.ffn.w1.weight"],
+                "weight_2": weights[f"layers.{i_transformer}.ffn.w2.weight"],
+                "weight_3": weights[f"layers.{i_transformer}.ffn.w3.weight"],
+            },
+        )
+        torch.nn.Module.load_state_dict(
+            transformer.ln1,
+            {
+                "g": weights[f"layers.{i_transformer}.ln1.weight"],
+            },
+        )
+        torch.nn.Module.load_state_dict(
+            transformer.ln2,
+            {
+                "g": weights[f"layers.{i_transformer}.ln2.weight"],
+            },
+        )
+
+        norm_output = transformer_lm.norm_output
+        torch.nn.Module.load_state_dict(
+            norm_output,
+            {
+                "g": weights["ln_final.weight"],
+            },
+        )
+        linear_output = transformer_lm.linear_output
+        torch.nn.Module.load_state_dict(linear_output, {"weight": weights["lm_head.weight"]})
+    out =transformer_lm(in_indices)
+    return out
 
 
 def run_rmsnorm(

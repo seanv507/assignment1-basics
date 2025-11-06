@@ -21,10 +21,14 @@ class RoPE(torch.nn.Module):
         self.register_buffer("rotations", rotations, persistent=False)
 
     def forward(self, x: torch.Tensor, token_positions: torch.Tensor):
-        batch_len, seq_len, embed_len = x.size()
-        rotations_lookup = torch.index_select(self.rotations, 0, token_positions)
+        batch_dims = x.size()[:-2]
+        seq_len = x.size()[-2]
+        embed_len = x.size()[-1]
+
+        rotations_lookup = einx.get_at("[p] d r c, [1] i-> i d r c", self.rotations, token_positions)
         dim_pair = int(embed_len // 2)
-        x_reshape = x.reshape((batch_len, seq_len, dim_pair, 2, 1))
+        x_reshape = x.reshape((*batch_dims, seq_len, dim_pair, 2, 1))
         rotated_x = torch.matmul(rotations_lookup, x_reshape)
-        out = rotated_x.reshape((batch_len, seq_len, embed_len))
+        out = rotated_x.reshape((*batch_dims, seq_len, embed_len))
+        # todo any way to reshape last x dimensions without caring about the front dimensions
         return out

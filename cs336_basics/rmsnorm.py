@@ -27,7 +27,6 @@ class RMSNorm(torch.nn.Module):
         rms = einx.sum(" b... [d]", summand)
         rms = einx.elementwise("a... -> a...", rms, self.d_model, op=torch.divide)
         rms = einx.elementwise("a... -> a...", rms, op=torch.sqrt)
-        print(x.size(), rms.size(), self.g.size())
         out = einx.divide("a... b, a... -> a... b", x, rms)
         out = einx.multiply("a... b, b -> a... b", out, self.g)
         # , * self.g

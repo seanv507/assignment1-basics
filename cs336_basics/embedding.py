@@ -37,7 +37,6 @@ class Embedding(torch.nn.Module):
         """given x  and weights"""
         out = get_at("[i] d, b...  -> b... d", self.weight, x)
         # out = self.weight[x, :]
-        print(x.size(), self.weight.size(), out.size())
         return out
 
     def extra_repr(self) -> str:

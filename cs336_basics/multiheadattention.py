@@ -67,8 +67,10 @@ class MultiHeadAttention(torch.nn.Module):
         # As a stretch goal, try combining the key, query, and value projections into a single weight matrix so you only need a single
         # matrix multiply.
         if self.rope:
+            if token_positions is None:
+                token_positions = torch.arange(x.shape[-2], dtype=torch.int32).view((1, -1))
             Q_rearrange = self.rope(Q_rearrange, token_positions)
-            K_rearrange = self.rope(Q_rearrange, token_positions)
+            K_rearrange = self.rope(K_rearrange, token_positions)
 
         seq_len = x.shape[-2]
         mask = torch.tril(torch.ones((seq_len, seq_len), dtype=torch.bool))

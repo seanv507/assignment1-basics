@@ -91,6 +91,19 @@ def test_multihead_self_attention(numpy_snapshot, in_embeddings, d_model, n_head
     numpy_snapshot.assert_match(actual_output, atol=1e-6)
 
 
+def test_get_at():
+    import einx
+    import numpy as np
+
+    image = np.ones((256, 256, 3))
+    coordinates = np.ones((100, 2), dtype=np.int32)
+    updates = np.ones((100, 3))
+
+    # Retrieve values at the given locations in an image
+    y = einx.get_at("[h w] c, i [2] -> i c", image, coordinates)
+    breakpoint()
+
+
 def test_multihead_self_attention_with_rope(
     numpy_snapshot, in_embeddings, d_model, n_heads, ts_state_dict, n_keys, theta, pos_ids
 ):
