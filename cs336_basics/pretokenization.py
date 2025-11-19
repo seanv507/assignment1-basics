@@ -54,42 +54,43 @@ def find_chunk_boundaries(
 
 
 ## Usage
-def chunk_and_count_tokens(filename, special_tokens=None):
-    with open(filename, "rb") as f:
+def chunk_and_count_tokens(filename, special_tokens=None, pattern =None):
+    with open(filename, "rb") as file:
         num_processes = 4
-        boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
+        boundaries = find_chunk_boundaries(file, num_processes, b"<|endoftext|>")
 
         # The following is a serial implementation, but you can parallelize this
         # by sending each start/end pair to a set of processes.
         token_counts = Counter()
         for start, end in zip(boundaries[:-1], boundaries[1:]):
-            token_count = process_chunk(f, start, end, special_tokens)
+            chunk = read_chunk(file, start, end)
+
+            token_count = pretokenize_count(chunk, special_tokens, pattern)
             token_counts += token_count
-    byte_tuple_counts = split_tokens(token_counts)
-    print(byte_tuple_counts)
-    byte_pair_counts, byte_pair_locations = create_byte_pair_counts(byte_tuple_counts)
-    sorted_byte_pairs = sort_byte_pairs(byte_pair_counts)
-    print(sorted_byte_pairs)
-    return byte_tuple_counts
-
-
-def split_tokens(token_counts: dict[str, int]) -> dict[tuple[bytes], int]:
-    byte_tuple_counts = Counter({tuple(token): count for token, count in token_counts.items()})
-    return byte_tuple_counts
-
-
-def process_chunk(file: BinaryIO, start: int, end: int, special_tokens):
-    text = read_chunk(file, start, end)
-
-    texts = strip_special_tokens(text, special_tokens)
-    token_counts = count_tokens(tok for text in texts for tok in pretokenize(text))
-    return token_counts
+    # we need to maintain
+    # word | encoding |counts
+    # encoding -> word
+    # word = lower, encoding = (lo,w,er)
+    # split words into tuples of bytes
+    bpe_counts = split_tokens(token_counts)
+    n_merge = 1
+    merge_bpe(bpe_counts, n_merge)
+    
+    return bpe_counts
 
 
 def read_chunk(file: BinaryIO, start: int, end: int) -> str:
     file.seek(start)
     chunk = file.read(end - start).decode("utf-8", errors="ignore")
     return chunk
+
+
+def pretokenize_count(text: bytes, special_tokens=None, pattern=None):
+    if pattern is None:
+        pattern = PAT  
+    texts = strip_special_tokens(text, special_tokens)
+    token_counts = count_tokens(tok for text in texts for tok in pretokenize(text, pattern))
+    return token_counts
 
 
 def strip_special_tokens(text: str, special_tokens: Iterable[str] = None) -> list[str]:
@@ -101,42 +102,85 @@ def strip_special_tokens(text: str, special_tokens: Iterable[str] = None) -> lis
     return texts
 
 
-def pretokenize(text: str) -> dict[str, int]:
+def pretokenize(text: str, pattern) -> dict[str, int]:
     # Run pre-tokenization on your chunk and store the counts for each pre-token
-    tokens = re.finditer(PAT, text)
+    tokens = re.finditer(pattern, text)
     for token in tokens:
         yield token.group()
 
 
 def count_tokens(tokens: Iterable[str]) -> dict[str, int]:
     token_counts = Counter(tokens)
-
     return token_counts
 
 
-def create_byte_pair_counts(byte_tuple_counts: dict[tuple[bytes], int]) -> dict[tuple[bytes], int]:
-    byte_pair_counts = Counter()
-    byte_pair_locations = defaultdict(set)
+def split_tokens(token_counts: dict[str, int]) -> dict[tuple[bytes], int]:
+    # create a new counter with different key
+    byte_tuple_counts = Counter({tuple(token): count for token, count in token_counts.items()})
+    return byte_tuple_counts
+
+
+def merge_bpe(bpe_counts, n_merge):
+    merge_pairs=[]
+
+    for _ in range(n_merge):
+    # count merge candidates
+        merge_counts, bpe_locations = create_merge_pair_counts(bpe_counts)
+        # select maximuma
+        merge_pair = find_max_merge_pair(merge_counts)
+        merge_pairs.append(merge_pair)
+        update_bpe_counts(bpe_counts, bpe_locations, merge_pair)
+    return bpe_counts, merge_pairs
+
+
+def create_merge_pair_counts(byte_tuple_counts: dict[tuple[bytes], int]) -> dict[tuple[bytes], int]:
+    merge_pair_counts = Counter()
+    merge_pair_locations = defaultdict(set)
     for byte_tuple, count in byte_tuple_counts.items():
         if len(byte_tuple) == 1:
             continue
         for b1, b2 in zip(byte_tuple, byte_tuple[1:]):
-            byte_pair_counts[(b1, b2)] += count
-            byte_pair_locations[(b1, b2)].add(byte_tuple)
-    return byte_pair_counts, byte_pair_locations
+            merge_pair = b1+b2
+            merge_pair_counts[merge_pair] += count
+            merge_pair_locations[merge_pair].add(byte_tuple)
+    return merge_pair_counts, merge_pair_locations
 
 
-def sort_byte_pairs(byte_pair_counts: dict[tuple[bytes], int]) -> list[tuple[bytes]]:
-    sorted_byte_pairs = sorted(byte_pair_counts.items(), key=lambda x: (-x[1], x[0]))
-    return sorted_byte_pairs
+def find_max_merge_pair(byte_pair_counts: dict[tuple[bytes], int]) -> tuple[bytes]:
+    max_byte_pair = max(byte_pair_counts.items(), key=lambda x: (x[1], x[0]))
+
+    return max_byte_pair[0]
+
+def update_bpe_counts(bpe_counts, bpe_locations, merge_pair):
+    for word in bpe_locations[merge_pair]:
+                old_key = word
+                key_count = bpe_counts[old_key]
+                new_key = create_new_key(old_key, merge_pair)
+                bpe_counts.pop(old_key)
+                bpe_counts[new_key]= key_count
+    return bpe_counts
 
 
-def merge_byte_pairs(byte_pair_counts, byte_pair_locations, byte_tuple_counts, pair_to_merge):
+def create_new_key(old_key: tuple[bytes], merge_pair:bytes):
+    new_key = []
+    i_enc = 0
+    while i_enc<=(len(old_key)-1):
+
+        if i_enc < len(old_key)-1 and old_key[i_enc] + old_key[i_enc+1]== merge_pair:
+            new_key.append(merge_pair)
+            i_enc +=2
+        else:
+            new_key.append(old_key[i_enc])
+            i_enc +=1
+    return tuple(new_key)
+
+
+def merge_byte_pair(bpe_counts, bpe_locations, byte_tuple_counts, pair_to_merge):
     b1, b2 = pair_to_merge
     new_byte = b1 + b2
     new_byte_tuple_counts = Counter()
     for byte_tuple, count in byte_tuple_counts.items():
-        if byte_tuple in byte_pair_locations[pair_to_merge]:
+        if byte_tuple in bpe_locations[pair_to_merge]:
             new_tuple = []
             skip_next = False
             for b in byte_tuple:
